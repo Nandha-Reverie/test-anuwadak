@@ -19,7 +19,7 @@ module.exports = function (node) {
         'dd': 'dd',
         'details': 'details',
         'dir': 'dir',
-        'div': 'div',
+        // 'div': 'div',
         'dl': 'dl',
         'dt': 'dt',
         'embed': 'embed',
