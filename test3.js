@@ -15,8 +15,9 @@ let noAlpha = new RegExp('^[^\u0041-\u005A\u0061-\u007A]+$', 'g');
 
 
 var $, $d, $b, $i;
-let mt_data = []
+let mt_data = [], totalData = [], tns
 var rendered;
+var bcheck = false
 
 async function prerender(mainDomainURL, lang) {
     rendered = await requestPromise(mainDomainURL);
@@ -42,6 +43,15 @@ async function prerender(mainDomainURL, lang) {
 
 
     nodeTreeWalker()
+    console.log('total data', totalData);
+
+    tns = await fetch_transliteration(totalData, 'tamil')
+    console.log('tns', tns);
+
+    bcheck = true;
+    nodeTreeWalker()
+
+
 
     // let target_lang = getTransCodeFromDomainCode(lang)
     // let tns = await fetch_transliteration(mt_data, target_lang)
@@ -132,11 +142,12 @@ function blockHandler(node, ref) {
             break;
     }
     let val = $t.html(node, this)
+    let val1 = $t(node).text()
     val = $t(val).html();
 
     $b = cheerio.load(val)
     let broot = $b.root()[0]
-    console.log('block', val, $b('body').children().length);
+    console.log('block', val);
 
     //taking only the text value
 
@@ -146,6 +157,17 @@ function blockHandler(node, ref) {
 
         console.log('---->text<----', textValue);
     }
+
+    // if ((node.name == 'a' || node.name == 'span')) {
+    //     console.log('catch for inline with class');
+
+    //     let res = `${val} +${uuid()}`
+    //     let unique = res.split('+')[1]
+    //     $(node.name).attr('unique', unique);
+    //     arr.push(res)
+    //     console.log('array', arr);
+    //     totalData.push(...arr)
+    // }
 
     if ($b('body').children().length > 0) {
         $b('body').children().each(function (i, ele) {
@@ -160,22 +182,37 @@ function blockHandler(node, ref) {
                 blockHandler(ele, 'block')
 
             } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
-                value = $.html(this)
-                let res = `${value} +${uuid()}`
-                let unique = res.split('+')[1]
-                arr.push(res)
-                $(ele.name, this).attr('unique', unique)
-                console.log('array', arr);
+                if (!bcheck) {
+                    value = $.html(this)
+                    // let res = `${value} +${uuid()}`
+                    // let unique = res.split('+')[1]
+                    arr.push(value)
+                    // $(ele.name, this).attr('unique', unique)
+                    console.log('array', arr);
+                    totalData.push(...arr)
+                } else {
+                    // console.log('cb1 exec...');
+                    value = $.html(this)
+                    cb1(value, ele.name, this)
+                }
+
 
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
                 console.log('inside block handler....');
 
-                value = $.html(this)
-                let res = `${value} +${uuid()}`
-                let unique = res.split('+')[1]
-                arr.push(res)
-                $(ele.name, this).attr('unique', unique)
-                console.log('array', arr);
+                if (!bcheck) {
+                    value = $.html(this)
+                    // let res = `${value} +${uuid()}`
+                    // let unique = res.split('+')[1]
+                    arr.push(value)
+                    // $(ele.name, this).attr('unique', unique)
+                    console.log('array', arr);
+                    totalData.push(...arr)
+                } else {
+                    // console.log('cb1 exec...');
+                    value = $.html(this)
+                    cb1(value, ele.name, this)
+                }
 
             }
             // else if (is_allowed(ele) && ele.type == 'tag' && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
@@ -192,11 +229,20 @@ function blockHandler(node, ref) {
         // console.log('block exec 0..');
         let htm = $.html(node, this)
 
-        let res = `${val} +${uuid()}`
-        let unique = res.split('+')[1]
-        $(node.name).attr('unique', unique);
-        arr.push(res)
-        console.log('array', arr);
+        if (!bcheck) {
+            // let res = `${val} +${uuid()}`
+            // let unique = res.split('+')[1]
+            // $(node.name).attr('unique', unique);
+            // arr.push(res)
+            arr.push(val1)
+            console.log('array', arr);
+            totalData.push(...arr)
+        } else {
+            // console.log('cb1 exec...');
+            cb1(val1, node, this)
+        }
+
+
     }
 
     // //checking for text
@@ -258,14 +304,21 @@ function inlineHandler(node, ref) {
     } else {
         console.log('inline exec 0...');
 
-        if (!case_insensitive_set.has(val.toLowerCase())) {
-            mt_data.push(val)
-            case_insensitive_set.add(val.toLowerCase())
-            console.log('mt-data', mt_data);
+        if (!bcheck) {
+            if (!case_insensitive_set.has(val.toLowerCase())) {
+                mt_data.push(val)
+                case_insensitive_set.add(val.toLowerCase())
+                console.log('mt-data', mt_data);
+                totalData.push(...mt_data)
 
+            }
+        } else {
+            // console.log('cb1 exec...');
+
+            cb1(val, node, this)
         }
-    }
 
+    }
 
 }
 
@@ -310,13 +363,18 @@ function inlineParser(node) {
     rec(node)
 }
 
-function blockParser(ele) {
-    let arr = []
-    let value = $(ele.name, this).html()
-    let res = `${value} +${uuid()}`
-    let unique = res.split('+')[1]
-    $(ele.name, this).attr('unique', unique);
-    arr.push(res)
+async function fetch_transliteration(data, target_lang) {
+    // data = Array.from(new Set(data))
+    let post_url = "http://beta.auth.revup.reverieinc.com/apiman-gateway/Rev_app_devesh/transliteration/1.0?target_lang=" + target_lang + "&source_lang=english&domain=2&nmt=false&segmentation=false&ignoreRosettaForMt=true&mt=false"
+    // let post_url = "http://beta.auth.revup.reverieinc.com/apiman-gateway/Rev_app_devesh/transliteration/1.0?target_lang="+target_lang+"&source_lang=english&domain=2&convert_number=true"
+    let response = await axios.post(post_url,
+        { "data": data },
+        { headers: { 'REV-API-KEY': 'fc294a1cfe56761a9b46b6f259db31d5', 'REV-APP-ID': 'devesh_new_appid' } });
+
+    let localized = {}
+    let res = response.data.responseList.map(x => localized[x.inString.toLowerCase()] = x.outString)
+    // let res = response.data.responseList.map( x => localized[x.inString.toLowerCase()] = x.outString[0])
+    return localized
 }
 
 function cb(node) {
@@ -327,8 +385,20 @@ function cb(node) {
     if (!case_insensitive_set.has(text.toLowerCase())) {
         mt_data.push(text)
         case_insensitive_set.add(text.toLowerCase())
+        totalData.push(...mt_data)
     }
     console.log('mt-data', mt_data);
+
+}
+
+function cb1(val, node, that) {
+    console.log('cb1 value', val, tns[val.toLowerCase()])
+
+    if (tns[val.toLowerCase()]) {
+        // node.nodeValue = tns[key.toLowerCase()]
+        $(node.name).text(tns[val.toLowerCase()])
+
+    }
 
 }
 
