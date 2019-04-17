@@ -485,9 +485,9 @@ function cb(node, i) {
             totalData.push(...mt_data)
         }
     }
-    //else {
-
-    // }
+    else {
+        node.nodeValue = tns[text.toLowerCase()]
+    }
 
     console.log('mt-data', mt_data);
 
