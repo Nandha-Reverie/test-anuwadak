@@ -14,7 +14,7 @@ let restrictedElements = ['script', 'noscript', 'style', 'object', 'embed', 'svg
 let noAlpha = new RegExp('^[^\u0041-\u005A\u0061-\u007A]+$', 'g');
 
 
-var $, $d, $b, $i;
+var $;
 let mt_data = [], totalData = [], tns
 var rendered;
 var bcheck = false
@@ -27,35 +27,58 @@ async function prerender(mainDomainURL, lang) {
     console.log(rendered)
 
     $ = cheerio.load(rendered, { ignoreWhitespace: true })
-    let rootNode = $.root()[0]
-    rootNode = $.html('body')
-    // console.log('rootnode', rootNode);
 
-    // console.log('length', $('body').children().length);
-
-    // $('body').each((n, ele) => {
-    //     console.log('ele', ele);
-
-    // })
-
-
-
-
+    let children = $('*').children()
 
     nodeTreeWalker()
     console.log('total data', totalData);
 
+    //let target_lang = getTransCodeFromDomainCode(lang)
     tns = await fetch_transliteration(totalData, 'tamil')
     console.log('tns', tns);
 
     bcheck = true;
     nodeTreeWalker()
 
+    //Changing Links
 
+    children.each((c) => {
+        if (children[c].name == "style" || children[c].name == "script" || children[c].name == "img" || children[c].name == "link") {
 
-    // let target_lang = getTransCodeFromDomainCode(lang)
-    // let tns = await fetch_transliteration(mt_data, target_lang)
-    // console.log(tns);
+            let srcpath
+            if (children[c].name == "link") {
+                srcpath = $(children[c]).attr("href")
+            } else {
+                srcpath = $(children[c]).attr("src")
+            }
+            if (srcpath && srcpath.trim() !== "" && !isUrl(srcpath) && !srcpath.startsWith("#") && !srcpath.startsWith("//")) {
+                let newsrcpath = getNewSrcPath(mainDomainUrl, srcpath)
+                if (newsrcpath && newsrcpath.trim !== "") {
+                    if (children[c].name == "link") {
+                        $(children[c]).attr("href", newsrcpath)
+                    } else {
+                        $(children[c]).attr("src", newsrcpath)
+                    }
+                }
+            }
+        } else if (children[c].name == "a") {
+            srcpath = $(children[c]).attr("href")
+            if (srcpath && srcpath.trim() !== "" && isUrl(srcpath) && !srcpath.startsWith("#") && !srcpath.startsWith("//")) {
+                mainDomainHostObject = extractHostURLObject(mainDomainUrl);
+                if (mainDomainHostObject) {
+                    let newsrcpath
+                    if (srcpath.indexOf(mainDomainHostObject.http) != -1) {
+                        newsrcpath = srcpath.replace(mainDomainHostObject.http, subDomainHost)
+                    } else if (srcpath.indexOf(mainDomainHostObject.https) != -1) {
+                        newsrcpath = srcpath.replace(mainDomainHostObject.https, subDomainHost)
+                    }
+                    if (newsrcpath && newsrcpath.trim !== "") {
+                        $(children[c]).attr("href", newsrcpath)
+                    }
+                }
+            }
+        }
+    })
 
     return $.html()
 }
@@ -63,20 +86,24 @@ async function prerender(mainDomainURL, lang) {
 //HTML Parsing
 
 function nodeTreeWalker() {
+    let ind;
     $('body').children().each(function (i, ele) {
 
-        // console.log('ele', $(this).attr('class'), ele.name);
-
         if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag') {
-            divHandler(ele, 'main')
+            ind = $(ele.name).index(this)
+            divHandler(ele, ind)
         } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
-            inlineHandler(ele, 'main')
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
         } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('no-split')) {
-            blockHandler(ele, 'main')
+            ind = $(ele.name).index(this)
+            blockHandler(ele, ind)
         } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag') {
-            inlineHandler(ele, 'main')
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
         } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag') {
-            blockHandler(ele, 'main')
+            ind = $(ele.name).index(this)
+            blockHandler(ele, ind)
         }
     })
 
@@ -85,237 +112,216 @@ function nodeTreeWalker() {
 
 //Div Handler
 
-function divHandler(node, ref) {
-    let $t
-    switch (ref) {
-        case 'main':
-            $t = $
-            break;
-        case 'div':
-            $t = $d
-            break;
-        case 'block':
-            $t = $b
-            break;
-        case 'inline':
-            $t = $i
-            break;
-        default:
-            break;
-    }
-    let val = $t.html(node, this)
-    val = $t(val).html();
-    $d = cheerio.load(val)
+function divHandler(node, i) {
+    let ind
 
-    $d('body').children().each(function (i, ele) {
+    //Iterating the Elements using the index
+
+    $($(node.name).eq(i)).children().each(function (i, ele) {
         if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
-            inlineHandler(ele, 'div')
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
         } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('no-split')) {
-            blockHandler(ele, 'div')
+            ind = $(ele.name).index(this)
+            blockHandler(ele, ind)
         } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag') {
-            inlineHandler(ele, 'div')
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
         } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag') {
-            blockHandler(ele, 'div')
+            ind = $(ele.name).index(this)
+            blockHandler(ele, ind)
         } else if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag') {
-            divHandler(ele, 'div')
+            ind = $(ele.name).index(this)
+            divHandler(ele, ind)
         }
     })
-
 }
 
-function blockHandler(node, ref) {
-    let $t, value, arr = []
-    switch (ref) {
-        case 'main':
-            $t = $
-            break;
-        case 'div':
-            $t = $d
-            break;
-        case 'block':
-            $t = $b
-            break;
-        case 'inline':
-            $t = $i
-            break;
-        default:
-            break;
+function blockHandler(node, i) {
+    let value, arr = [], ind
+
+    //getting only text values
+    if ($($(node.name).eq(i)).children().length > 0) {
+        if (!bcheck) {
+
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            arr.push(e.data)
+                        }
+                    })
+                }
+            })
+            console.log('array', arr);
+            totalData.push(...arr)
+        } else {
+            console.log('cb1 exec...');
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            let eD = []
+                            eD.push(e.data)
+                            e.data = tns[eD[0].toLowerCase()]
+                            // console.log('----->tns<-------', eD);
+
+                        }
+                    })
+                }
+            })
+
+        }
     }
-    let val = $t.html(node, this)
-    let val1 = $t(node).text()
-    val = $t(val).html();
 
-    $b = cheerio.load(val)
-    let broot = $b.root()[0]
-    console.log('block', val);
-
-    //taking only the text value
-
-    if ($b('body').children().length > 0) {
-        let val1 = val
-        let textValue = val1.replace(/<\s*[a-z][^>]*>(.*?)<\s*\/\s*([a-z]*)>/g, "")
-
-        console.log('---->text<----', textValue);
-    }
-
-    // if ((node.name == 'a' || node.name == 'span')) {
-    //     console.log('catch for inline with class');
-
-    //     let res = `${val} +${uuid()}`
-    //     let unique = res.split('+')[1]
-    //     $(node.name).attr('unique', unique);
-    //     arr.push(res)
-    //     console.log('array', arr);
-    //     totalData.push(...arr)
-    // }
-
-    if ($b('body').children().length > 0) {
-        $b('body').children().each(function (i, ele) {
-            // console.log('block outer exec...');
-
+    if ($($(node.name).eq(i)).children().length > 0) {
+        $($(node.name).eq(i)).children().each(function (i, ele) {
             if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && $(this).hasClass('no-split')) {
                 console.log('Block inner exec.....');
-                blockHandler(ele, 'block')
-
+                ind = $(ele.name).index(this)
+                blockHandler(ele, ind)
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
                 console.log('Block Iner exec.....');
-                blockHandler(ele, 'block')
+                ind = $(ele.name).index(this)
+                blockHandler(ele, ind)
 
             } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
                 if (!bcheck) {
+
+                    //Write logic separetely for replacing the element
+
                     value = $.html(this)
-                    // let res = `${value} +${uuid()}`
-                    // let unique = res.split('+')[1]
                     arr.push(value)
-                    // $(ele.name, this).attr('unique', unique)
                     console.log('array', arr);
                     totalData.push(...arr)
                 } else {
-                    // console.log('cb1 exec...');
+                    ind = $(ele.name).index(this)
                     value = $.html(this)
-                    cb1(value, ele.name, this)
+                    //replace the old html with new HTML
+                    $($(ele.name).eq(ind)).replaceWith(tns[value])
+
                 }
-
-
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
                 console.log('inside block handler....');
 
                 if (!bcheck) {
+
+                    //Write logic separetely for replacing the element
+
                     value = $.html(this)
-                    // let res = `${value} +${uuid()}`
-                    // let unique = res.split('+')[1]
                     arr.push(value)
-                    // $(ele.name, this).attr('unique', unique)
                     console.log('array', arr);
                     totalData.push(...arr)
                 } else {
-                    // console.log('cb1 exec...');
+                    ind = $(ele.name).index(this)
                     value = $.html(this)
-                    cb1(value, ele.name, this)
+                    //replace the old html with new HTML
+                    $($(ele.name).eq(ind)).replaceWith(tns[value])
+
                 }
 
             }
-            // else if (is_allowed(ele) && ele.type == 'tag' && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
-            //     value = $(ele.name, this).html()
-            //     // let res = `${value} +${uuid()}`
-            //     // let unique = res.split('+')[1]
-            //     // $(ele.name, this).attr('unique', unique);
-            //     arr.push(value)
-            // }
-
         })
-
     } else {
-        // console.log('block exec 0..');
-        let htm = $.html(node, this)
+
+        //write logic for taking the text value seperately
 
         if (!bcheck) {
-            // let res = `${val} +${uuid()}`
-            // let unique = res.split('+')[1]
-            // $(node.name).attr('unique', unique);
-            // arr.push(res)
-            arr.push(val1)
+
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            arr.push(e.data)
+                        }
+                    })
+                }
+            })
             console.log('array', arr);
             totalData.push(...arr)
         } else {
-            // console.log('cb1 exec...');
-            cb1(val1, node, this)
+            console.log('cb1 exec...');
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            let eD = []
+                            eD.push(e.data)
+                            e.data = tns[eD[0].toLowerCase()]
+                        }
+                    })
+
+                }
+            })
+
+
         }
-
-
     }
-
-    // //checking for text
-    // $b('body').childNodes.forEach(n => console.log('n', n.name))
-
 }
 
-function inlineHandler(node, ref) {
+function inlineHandler(node, i) {
     let case_insensitive_set = new Set()
 
-    let $t
-    switch (ref) {
-        case 'main':
-            $t = $
-            break;
-        case 'div':
-            $t = $d
-            break;
-        case 'block':
-            $t = $b
-            break;
-        case 'inline':
-            $t = $i
-            break;
-        default:
-            break;
-    }
-    let val = $t.html(node, this)
-    val = $t(val).html();
+    let ind
 
-    console.log('inline', val);
-    $i = cheerio.load(val)
-
-    //taking only the text value
-
-    if ($i('body').children().length > 0) {
-        let val1 = val
-        let textValue = val1.replace(/<\s*[a-z][^>]*>(.*?)<\s*\/\s*([a-z]*)>/g, "")
-
-        console.log('---->text<----', textValue);
-    }
-
-    if ($i('body').children().length > 0) {
-
-        $i('body').children().each(function (i, ele) {
+    if ($($(node.name).eq(i)).children().length > 0) {
+        $($(node.name).eq(i)).children().each(function (i, ele) {
             if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
                 // inlineParser(ele)
-                inlineHandler(ele, 'inline')
+                ind = $(ele.name).index(this)
+                inlineHandler(ele, ind)
             } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('no-split')) {
-                blockHandler(ele, 'inline')
+                ind = $(ele.name).index(this)
+                blockHandler(ele, ind)
                 // blockParser(ele)
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag') {
-                blockHandler(ele, 'inline')
+                ind = $(ele.name).index(this)
+                blockHandler(ele, ind)
             } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag') {
-                inlineParser(ele)
+                ind = $(ele.name).index(this)
+                inlineParser(ele, ind)
             }
         })
-
     } else {
+
+        //Write logic separetly for taking txt value
+
         console.log('inline exec 0...');
 
         if (!bcheck) {
-            if (!case_insensitive_set.has(val.toLowerCase())) {
-                mt_data.push(val)
-                case_insensitive_set.add(val.toLowerCase())
-                console.log('mt-data', mt_data);
-                totalData.push(...mt_data)
-
-            }
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            mt_data.push(e.data)
+                        }
+                    })
+                }
+            })
+            totalData.push(...mt_data)
+            console.log('mt_data', mt_data);
         } else {
-            // console.log('cb1 exec...');
+            console.log('cb1 exec...');
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            let eD = []
+                            eD.push(e.data)
+                            e.data = tns[eD[0].toLowerCase()]
 
-            cb1(val, node, this)
+                        }
+                    })
+
+                }
+            })
+
         }
 
     }
@@ -323,7 +329,7 @@ function inlineHandler(node, ref) {
 }
 
 //parsing inline element
-function inlineParser(node) {
+function inlineParser(node, i) {
     console.log('======....Inline Parser exec.....====');
 
 
@@ -332,7 +338,7 @@ function inlineParser(node) {
         if (is_allowed(_node)) {
             // send back only the text nodes 
             if (_node.nodeType === 3) {
-                cb(_node)
+                cb(_node, i)
             }
         }
         else return
@@ -343,7 +349,7 @@ function inlineParser(node) {
 
             for (let i = 0; i < attrs.length; i++)
                 if (is_allowed(attrs[i])) {
-                    cb(attrs[i])
+                    cb(attrs[i], i)
                 }
         }
 
@@ -372,33 +378,118 @@ async function fetch_transliteration(data, target_lang) {
         { headers: { 'REV-API-KEY': 'fc294a1cfe56761a9b46b6f259db31d5', 'REV-APP-ID': 'devesh_new_appid' } });
 
     let localized = {}
-    let res = response.data.responseList.map(x => localized[x.inString.toLowerCase()] = x.outString)
+    let res = response.data.responseList.map(x => localized[x.inString.toLowerCase()] = x.outString[0])
     // let res = response.data.responseList.map( x => localized[x.inString.toLowerCase()] = x.outString[0])
     return localized
 }
 
-function cb(node) {
-    let case_insensitive_set = new Set()
-
-    var text = $i(node, this).text().replace(/^\s+|\s+$/gm, '')
-    console.log("-------" + text + "--------")
-    if (!case_insensitive_set.has(text.toLowerCase())) {
-        mt_data.push(text)
-        case_insensitive_set.add(text.toLowerCase())
-        totalData.push(...mt_data)
+//Old Logic
+function getNewSrcPath(url, oldsrcPath) {
+    let lastChar = url.substr(-1);
+    let newsrcpath = ""
+    if (lastChar == '/') {
+        url = url.substring(0, url.length - 1)
     }
-    console.log('mt-data', mt_data);
+    if (oldsrcPath.startsWith("/")) {
+        oldsrcPath = oldsrcPath.substring(1, oldsrcPath.length)
+        url = extractHostURL(url)
+    }
+    if (url.split("/").length <= 3) {
+        if (url.indexOf("#") != -1) {
+            newsrcpath = url.substring(0, url.indexOf("#")) + "/" + oldsrcPath
+        } else {
+            newsrcpath = url + "/" + oldsrcPath
+        }
+    } else if (url.indexOf("#") != -1) {
+        newsrcpath = url.substring(0, url.indexOf("#")) + oldsrcPath
+    } else {
+        newsrcpath = url.substring(0, url.lastIndexOf("/") + 1) + oldsrcPath
+    }
+
+    return newsrcpath
 
 }
 
-function cb1(val, node, that) {
-    console.log('cb1 value', val, tns[val.toLowerCase()])
+function extractHostURL(url) {
+    let hostname;
+    let protocol = ""
+    //find & remove protocol (http, ftp, etc.) and get hostname
 
-    if (tns[val.toLowerCase()]) {
-        // node.nodeValue = tns[key.toLowerCase()]
-        $(node.name).text(tns[val.toLowerCase()])
-
+    if (url.indexOf("//") > -1) {
+        hostname = url.split('/')[2];
+        protocol = url.split("//")[0];
     }
+    else {
+        hostname = url.split('/')[0];
+    }
+
+    //find & remove port number
+    hostname = hostname.split(':')[0];
+    //find & remove "?"
+    hostname = hostname.split('?')[0];
+
+    if (protocol) {
+        hostname = protocol + "//" + hostname
+    }
+    return hostname;
+}
+
+function extractHostURLObject(url) {
+    let hostname
+    let httpHost;
+    let httpsHost;
+    //find & remove protocol (http, ftp, etc.) and get hostname
+
+    if (url.indexOf("//") > -1) {
+        hostname = url.split('/')[2];
+        protocol = url.split("//")[0];
+    }
+    else {
+        hostname = url.split('/')[0];
+    }
+
+    //find & remove port number
+    hostname = hostname.split(':')[0];
+    //find & remove "?"
+    hostname = hostname.split('?')[0];
+
+
+    httpHost = "http://" + hostname;
+    httpsHost = "https://" + hostname
+    return { "http": httpHost, "https": httpsHost };
+}
+
+function getTransCodeFromDomainCode(lang) {
+    let targ_lang = trans_lang_map[lang]
+    if (!targ_lang) {
+        targ_lang = "tamil"
+    }
+    return targ_lang
+
+}
+
+function isUrl(s) {
+    var regexp = /^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/|www\.)[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$/
+    return regexp.test(s);
+}
+//----------------------------------
+function cb(node, i) {
+    let case_insensitive_set = new Set()
+
+    var text = $($(node.name).eq(i)).text().replace(/^\s+|\s+$/gm, '')
+    console.log("-------" + text + "--------")
+    if (!bcheck) {
+        if (!case_insensitive_set.has(text.toLowerCase())) {
+            mt_data.push(text)
+            case_insensitive_set.add(text.toLowerCase())
+            totalData.push(...mt_data)
+        }
+    }
+    //else {
+
+    // }
+
+    console.log('mt-data', mt_data);
 
 }
 
