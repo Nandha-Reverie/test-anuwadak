@@ -201,6 +201,7 @@ function blockHandler(node, i) {
                     value = $.html(this)
                     //replace the old html with new HTML
                     $($(ele.name).eq(ind)).replaceWith(tns[value])
+                    // $($(ele.name).eq(ind)).replaceWith("<h2>New heading</h2>")
 
                 }
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
@@ -219,6 +220,7 @@ function blockHandler(node, i) {
                     value = $.html(this)
                     //replace the old html with new HTML
                     $($(ele.name).eq(ind)).replaceWith(tns[value])
+                    // $($(ele.name).eq(ind)).replaceWith("<h2>New heading</h2>")
 
                 }
 
