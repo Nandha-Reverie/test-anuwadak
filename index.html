@@ -5,57 +5,20 @@
 </head>
 
 <body>
-    <div>
-        <h1>Interneting Is Easy!</h1>
-        <p>First, we need to learn some basic <a href="">link HTML</a> Second We need to learn</p>
+    <div class="split">
+        text
+        <a href="">link</a>
+        <p>para</p>
     </div>
-    <div>
-        <h2>Headings</h2>
-    </div>
-    <div>
-        <p>
-            Headings define the outline of your site. There are six levels of
-            headings.
+    <a href="">
+        link text
+        <p>inline p</p>
+    </a>
+    <p class="default">
+        PARA Text
+        <p>LINK PARA</p>
+    </p>
 
-        </p>
-        <h2>Lists</h2>
-    </div>
-
-    <div>
-        <p class="split">This is how you make an unordered list:</p>
-    </div>
-
-    <div>
-        <ul>
-            <li>Add a "ul" element (it stands for unordered list)</li>
-            <li>Add each item in its own "li" element</li>
-            <li>They don't need to be in any particular order</li>
-        </ul>
-    </div>
-    <div>
-        <p>
-            <div>
-                <a href="">link</a>
-            </div>
-        </p>
-    </div>
-
-    <a href="">outer link</a>
-    <script src="https://code.jquery.com/jquery-3.4.0.slim.min.js"
-        integrity="sha256-ZaXnYkHGqIhqTbJ6MB4l9Frs/r7U4jlx7ir8PJYBqbI=" crossorigin="anonymous"></script>
-    <script>
-        // $("div").click(function () {
-        //     // `this` is the DOM element that was clicked
-        //     var index = $("div").index(this);
-        //     console.log('index.....', index);
-
-        // });
-        $('body').click(function (e) {
-            var index = $('body').index($(e.target))
-            console.log('index', e.target, index);
-
-        })
-    </script>
 
 </body>
 

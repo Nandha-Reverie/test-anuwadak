@@ -89,7 +89,10 @@ function nodeTreeWalker() {
     let ind;
     $('body').children().each(function (i, ele) {
 
-        if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag') {
+        if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
+        } else if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag') {
             ind = $(ele.name).index(this)
             divHandler(ele, ind)
         } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
@@ -130,6 +133,9 @@ function divHandler(node, i) {
         } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag') {
             ind = $(ele.name).index(this)
             blockHandler(ele, ind)
+        } else if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
+            ind = $(ele.name).index(this)
+            inlineHandler(ele, ind)
         } else if (is_allowed(ele) && ele.name == 'div' && ele.nodeType == 1 && ele.type == 'tag') {
             ind = $(ele.name).index(this)
             divHandler(ele, ind)
@@ -178,16 +184,31 @@ function blockHandler(node, i) {
 
     if ($($(node.name).eq(i)).children().length > 0) {
         $($(node.name).eq(i)).children().each(function (i, ele) {
-            if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && $(this).hasClass('no-split')) {
-                console.log('Block inner exec.....');
+            if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && $(this).hasClass('split')) {
                 ind = $(ele.name).index(this)
-                blockHandler(ele, ind)
+                inlineHandler(ele, ind)
+
             } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
                 console.log('Block Iner exec.....');
                 ind = $(ele.name).index(this)
                 blockHandler(ele, ind)
 
-            } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
+            } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && $(this).hasClass('no-split')) {
+                console.log('Block inner exec.....');
+                ind = $(ele.name).index(this)
+                blockHandler(ele, ind)
+            }
+            // else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && $(this).hasClass('split')) {
+            //     ind = $(ele.name).index(this)
+            //     inlineHandler(ele, ind)
+
+            // } else if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1) {
+            //     console.log('Block Iner exec.....');
+            //     ind = $(ele.name).index(this)
+            //     blockHandler(ele, ind)
+
+            // } 
+            else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1) {
                 if (!bcheck) {
 
                     //Write logic separetely for replacing the element
@@ -270,6 +291,42 @@ function inlineHandler(node, i) {
 
     let ind
 
+    //getting only text values
+    if ($($(node.name).eq(i)).children().length > 0) {
+        if (!bcheck) {
+
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            mt_data.push(e.data)
+                        }
+                    })
+                }
+            })
+            console.log('mt_data', mt_data);
+            totalData.push(...mt_data)
+        } else {
+            console.log('cb1 exec...');
+            $($(node.name).eq(i)).each(function (i, ele) {
+                if (ele.name == node.name) {
+                    let temp = ele.children
+                    temp.forEach(e => {
+                        if (e.type == 'text') {
+                            let eD = []
+                            eD.push(e.data)
+                            e.data = tns[eD[0].toLowerCase()]
+                            // console.log('----->tns<-------', eD);
+
+                        }
+                    })
+                }
+            })
+
+        }
+    }
+
     if ($($(node.name).eq(i)).children().length > 0) {
         $($(node.name).eq(i)).children().each(function (i, ele) {
             if (is_allowed(ele) && block(ele.name) && ele.nodeType == 1 && ele.type == 'tag' && $(this).hasClass('split')) {
@@ -285,7 +342,8 @@ function inlineHandler(node, i) {
                 blockHandler(ele, ind)
             } else if (is_allowed(ele) && (ele.name == 'a' || ele.name == 'span') && ele.nodeType == 1 && ele.type == 'tag') {
                 ind = $(ele.name).index(this)
-                inlineParser(ele, ind)
+                // inlineParser(ele, ind)
+                inlineHandler(ele, ind)
             }
         })
     } else {
@@ -328,47 +386,6 @@ function inlineHandler(node, i) {
 
     }
 
-}
-
-//parsing inline element
-function inlineParser(node, i) {
-    console.log('======....Inline Parser exec.....====');
-
-
-    function rec(_node) {
-        // check eligibility
-        if (is_allowed(_node)) {
-            // send back only the text nodes 
-            if (_node.nodeType === 3) {
-                cb(_node, i)
-            }
-        }
-        else return
-
-        // process attributes if the node is an element node here 
-        if (_node.nodeType === 1 && _node.attribs && _node.attribs.length > 0) {
-            let attrs = _node.attribs
-
-            for (let i = 0; i < attrs.length; i++)
-                if (is_allowed(attrs[i])) {
-                    cb(attrs[i], i)
-                }
-        }
-
-        // process childrens 
-        if (_node.childNodes) {
-            _node.childNodes.forEach(n => is_allowed(n) && rec(n))
-        }
-
-        // process attributes 
-        if (_node.attribs)
-            for (let i = 0; i < _node.attribs.length; i++) {
-                if (allowedAttrs.indexOf(_node.attribs[i].name.toLowerCase()) !== -1)
-                    rec(_node.attribs[i])
-            }
-    }
-
-    rec(node)
 }
 
 async function fetch_transliteration(data, target_lang) {
